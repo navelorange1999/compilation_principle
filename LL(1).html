@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>LL(1)</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/element-ui@2.13.1/lib/theme-chalk/index.css">
+    <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/element-ui@2.13.1/lib/index.js"></script>
+</head>
+
+<body>
+    <div id="app">
+        <el-row>
+            <el-col :span="12">
+                <el-input v-model="inputStr" placeholder="几个测试用例：(i+i)*i; i*i+i ...即 i + * ( ) 组合"></el-input>
+            </el-col>
+            <el-col :span="12">
+                <el-button type="primary" plain @click="test">进行分析</el-button>
+            </el-col>
+        </el-row>
+        <el-row>
+            <el-col :span="24">
+                <el-table :data="result" border>
+                    <el-table-column prop="analyStack" label="分析栈">
+                    </el-table-column>
+                    <el-table-column prop="remainingStr" label="剩余串">
+                    </el-table-column>
+                    <el-table-column prop="production" label="产生式">
+                    </el-table-column>
+                </el-table>
+
+            </el-col>
+        </el-row>
+
+    </div>
+</body>
+<script>
+    class Node {
+        constructor(name) {
+            this.name = name; //非终结符名称
+            this.map = new Map();   //非终结符对应的终结符在预测分析表上的键值对
+        }
+        //添加预测分析表上的节点
+        addMap(key, val) {
+            this.map.set(key, val);
+        }
+    }
+    new Vue({
+        el: "#app",
+        data() {
+            return {
+                E: new Node("E"),
+                e: new Node("e"),
+                T: new Node("T"),
+                t: new Node("t"),
+                F: new Node("F"),
+                list: [],
+                inputStr: "",
+                startStack: "#E",
+                result: []
+            }
+        },
+        methods: {
+            getNode(name) {
+                let node;
+                this.list.forEach(val => {
+                    if (val.name == name) {
+                        node = val;
+                    }
+                })
+                return node;
+            },
+            init() {
+                this.E.addMap("i", "Te");
+                this.E.addMap("(", "Te");
+                this.e.addMap("+", "+Te");
+                this.e.addMap(")", "ε");
+                this.e.addMap("#", "ε");
+                this.T.addMap("i", "Ft");
+                this.T.addMap("(", "Ft");
+                this.t.addMap("+", "ε");
+                this.t.addMap("*", "*Ft");
+                this.t.addMap(")", "ε");
+                this.t.addMap("#", "ε");
+                this.F.addMap("i", "i");
+                this.F.addMap("(", "(E)");
+                this.list = [this.E, this.e, this.T, this.t, this.F];
+                console.log("list",this.list);
+                this.result = []
+            },
+            run(curStack = this.startStack.split(""), curStrArr = (this.inputStr + "#").split("")) {
+                //当前栈顶元素是否和剩余串队首元素相等
+                if (curStack[curStack.length - 1] == curStrArr[0]) {
+                    //相等情况下，判断是否都是唯一一个元素，作为递归出口
+                    if (curStack.length == 1 && curStrArr.length == 1) {
+                        let res = {
+                            analyStack: curStack[0],
+                            remainingStr: curStack[0],
+                            production: "接受"
+                        }
+                        this.result.push(res);
+                        return;
+                    } else {
+                        //不是唯一一个元素，则只是当前栈顶元素和剩余串队首元素匹配
+                        let res = {
+                            analyStack: curStack.join(""),
+                            remainingStr: curStrArr.join(""),
+                            production: `${curStrArr[0]} 匹配`
+                        }
+                        this.result.push(res);
+                        //末尾元素出栈
+                        curStack.pop();
+                        //字符串队首出队列
+                        curStrArr.shift();
+                        //继续递归调用
+                        this.run(curStack, curStrArr);
+                    }
+                    //如果不相等，则通过构造的预测分析表找到对应表达式，栈顶元素出栈，表达式右边依次出栈后再入当前栈
+                } else {
+                    //找到节点
+                    let curNode = this.getNode(curStack[curStack.length - 1]);
+                    let production = `${curStack[curStack.length-1]}->${curNode.map.get(curStrArr[0])}`;
+                    let res = {
+                        analyStack: curStack.join(""),
+                        remainingStr: curStrArr.join(""),
+                        production: production
+                    }
+                    //栈顶元素出栈
+                    curStack.pop();
+                    let arr = curNode.map.get(curStrArr[0]).split("");
+                    //如果为ε则不需要将ε符号入栈
+                    if (arr[0] != "ε") {
+                        //这里直接是反转数组，然后再拼接到出栈后的栈数组上，目的上就是栈顶元素出栈，表达式右边依次出栈后再入当前栈
+                        curStack = curStack.concat(arr.reverse());
+                    }
+                    this.result.push(res);
+                    //继续递归调用
+                    this.run(curStack, curStrArr);
+                }
+            },
+            test() {
+                this.init();
+                try {
+                    this.run();
+                    this.$message({
+                        type: "success",
+                        message: "得出结果"
+                    })
+                } catch (error) {
+                    console.log(error);
+                    this.$message({
+                        type: "error",
+                        message: "不被文法接受"
+                    })
+                }
+            }
+        },
+        created() {
+            this.init();
+        },
+    })
+</script>
+
+</html>
