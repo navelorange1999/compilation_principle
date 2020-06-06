@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>DFA</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/element-ui@2.13.1/lib/theme-chalk/index.css">
+    <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/element-ui@2.13.1/lib/index.js"></script>
+</head>
+
+<body>
+    <div id="app">
+        <el-form label-position="top" label-width="80px">
+            <el-form-item label="输入状态集,输入时用单个空格区分">
+                <el-input placeholder="格式如下：S U X Y .... G" v-model="stateSetStr"></el-input>
+            </el-form-item>
+            <el-form-item label="选择初态">
+                <el-checkbox-group v-model="firstState" :max="1">
+                    <el-checkbox v-for="item in stateSet" :label="item"></el-checkbox>
+                </el-checkbox-group>
+            </el-form-item>
+            <el-form-item label="选择终态集">
+                <el-checkbox-group v-model="endStateSet">
+                    <el-checkbox v-for="item in stateSet" :label="item" :disabled="item == firstState[0]"></el-checkbox>
+                </el-checkbox-group>
+            </el-form-item>
+            <el-form-item>
+                <template slot="label">
+                    <el-row>
+                        <el-col :span="12">构建状态转换函数</el-col>
+                        <el-col :span="12">
+                            <el-button type="primary" size="mini" plain @click="addNewTranFunc">新增状态转换函数</el-button>
+                        </el-col>
+                    </el-row>
+
+                </template>
+                <el-row type="flex" align="middle" v-for="(item,idx) in tranFuncArr" justify="space-between">
+                    <el-col :span="4">
+                        <el-form-item label="转换前状态：" v-if="idx != 0">
+                            <el-select v-model="item.curState" placeholder="选择转换前状态">
+                                <el-option v-for="(item,idx) in stateSet" :key="idx" :label="item" :value="item">
+                                </el-option>
+                            </el-select>
+                        </el-form-item>
+                        <el-form-item label="转换前状态：" v-if="idx == 0">
+                            <el-select v-model="item.curState" placeholder="选择转换前状态">
+                                <el-option v-for="(item,idx) in firstState" :key="idx" :label="item" :value="item">
+                                </el-option>
+                            </el-select>
+                        </el-form-item>
+                    </el-col>
+                    <el-col :span="4">
+                        <el-form-item label="输入字符：">
+                            <el-input v-model="item.inputByte" placeholder=""></el-input>
+                        </el-form-item>
+                    </el-col>
+                    <el-col :span="4">
+                        <el-form-item label="经过当前输入字符到达的下一状态：" v-if="idx != 0">
+                            <el-select v-model="item.nextState" placeholder="选择到达的下一状态">
+                                <el-option v-for="(item,idx) in stateSet" :key="idx" :label="item" :value="item">
+                                </el-option>
+                            </el-select>
+                        </el-form-item>
+                        <el-form-item label="经过当前输入字符到达的下一状态：" v-if="idx == 0">
+                            <el-select v-model="item.nextState" placeholder="选择到达的下一状态">
+                                <el-option v-for="(item,idx) in stateSet" :key="idx" :label="item" :value="item"
+                                    :disabled="item == firstState[0]">
+                                </el-option>
+                            </el-select>
+                        </el-form-item>
+                    </el-col>
+                    <el-col :span="4">
+                        <el-form-item>
+                            <template slot="label">状态转换函数 {{idx+1}}：f{{idx+1}}({{item.curState}},{{item.inputByte}}) =
+                                {{item.nextState}}</template>
+                            <el-button v-if="idx != 0" type="danger" plain size="mini" @click="deleteCurTranFunc(idx)">
+                                删除</el-button>
+                        </el-form-item>
+                    </el-col>
+                </el-row>
+            </el-form-item>
+        </el-form>
+        <el-row type="flex" align="middle" justify="space-around">
+            <el-col :span="12">
+                <el-input v-model="inputStr" placeholder="输入需要检测的字符串"></el-input>
+            </el-col>
+            <el-col :span="12">
+                <el-button width="100%" type="primary" @click="runDFA">检测字符串</el-button>
+            </el-col>
+        </el-row>
+    </div>
+</body>
+<script>
+    class Node {
+        constructor(name, end = false) {
+            this.name = name; //节点名称
+            this.path = new Map(); //子节点集
+            this.end = end; //是否属于终态集
+        }
+        //添加子节点，inputByte输入字符，nextNode到达的下一节点
+        addNextNode(inputByte, nextNodeName) {
+            this.path.set(inputByte, nextNodeName);
+        }
+    };
+    new Vue({
+        el: "#app",
+        data() {
+            return {
+                //stateSet: [], //状态集
+                firstState: [], //初态
+                endStateSet: [], //终态集
+                stateSetStr: "",
+                tranFuncArr: [{
+                    curState: "",
+                    inputByte: "",
+                    nextState: ""
+                },],
+                inputStr: "",
+                nodeList: [], //节点列表
+            }
+        },
+        computed: {
+            //根据输入的字符串格式化得到状态集数组
+            stateSet: function () {
+                if (this.stateSetStr != "") {
+                    let set = this.stateSetStr.split(" ");
+                    return set;
+                }
+
+            }
+        },
+        methods: {
+            //新建状态转换函数
+            addNewTranFunc() {
+                this.tranFuncArr.push({
+                    curState: "",
+                    inputByte: "",
+                    nextState: ""
+                });
+                this.inputShow = false;
+            },
+            //删除当前的状态转换函数
+            deleteCurTranFunc(idx) {
+                this.tranFuncArr.splice(idx, 1);
+                this.inputShow = false;
+            },
+            //根据节点名称获取节点
+            getNodeByName(name) {
+                let node = null;
+                this.nodeList.forEach(val=>{
+                    if(val.name == name){
+                        node = val;
+                    }
+                })
+                return node;
+            },
+            buildDFA() {
+                return new Promise((resolve, reject) => {
+                    //创建根节点
+                    let root = new Node(this.firstState[0]);
+                    this.nodeList.push(root);
+                    //根据状态转换函数生成DFA
+                    this.tranFuncArr.forEach((val, idx) => {
+                        //判断状态转换函数是否填完整
+                        if (val.curState != "" && val.inputByte != "" && val.nextState != "") {
+                            //先判断需要添加的节点是否已经存在
+                            if(this.getNodeByName(val.nextState)) {
+                                this.getNodeByName(val.curState).addNextNode(val.inputByte, val.nextState)
+                            }
+                            else {
+                                let newNode = new Node(val.nextState, this.endStateSet.includes(val.nextState))
+                                this.nodeList.push(newNode);
+                                this.getNodeByName(val.curState).addNextNode(val.inputByte, val.nextState);
+                            }
+                        } else {
+                            reject("请先完成状态转换函数！");
+                        }
+
+                    })
+                    resolve(root);
+                    console.log(root);
+                })
+
+            },
+            runDFA() {
+                //先构建DFA,得到根节点
+                this.buildDFA().then(res => {
+                    //当前节点置为根节点
+                    let curNode = res;
+                    console.log("root:", curNode);
+                    //是否到终态集标志
+                    let flag = curNode.end;
+                    //循环该字符串
+                    for (let i = 0; i < this.inputStr.length; i++) {
+                        //如果当前节点存在
+                        if (curNode) {
+                            //判断当前节点下是否有当前字符的路径，有路径则将下一节点置为当前节点，然后继续循环
+                            if (curNode.path.has(this.inputStr.charAt(i))) {
+                                curNode = this.getNodeByName(curNode.path.get(this.inputStr.charAt(i)));
+                                flag = curNode.end;
+                                continue;
+                                //如果没有则跳出循环
+                            } else {
+                                flag = false;
+                                break;
+                            }
+                        }
+                    }
+                    if (!flag) {
+                        this.$message({
+                            type: "error",
+                            message: "该字符串不可被当前DFA识别，请重试"
+                        });
+                    } else {
+                        this.$message({
+                            type: "success",
+                            message: "该字符串可以被当前DFA识别"
+                        })
+                    }
+                    return flag;
+                    //抛出得不到根节点的异常
+                }).catch(err => {
+                    this.$message({
+                        type: "error",
+                        message: err,
+                    });
+                })
+            }
+        },
+        created() {
+            this.stateSetStr = "S U V Q",
+                this.firstState = ["S"];//初态
+            this.endStateSet = ["Q"];
+            this.tranFuncArr = [{
+                curState: "S",
+                inputByte: "a",
+                nextState: "U"
+            },
+            {
+                curState: "S",
+                inputByte: "b",
+                nextState: "V"
+            },
+            {
+                curState: "U",
+                inputByte: "b",
+                nextState: "V"
+            },
+            {
+                curState: "V",
+                inputByte: "a",
+                nextState: "U"
+            },
+            {
+                curState: "U",
+                inputByte: "a",
+                nextState: "Q"
+            },
+            {
+                curState: "V",
+                inputByte: "b",
+                nextState: "Q"
+            },
+            {
+                curState: "Q",
+                inputByte: "a",
+                nextState: "Q"
+            },
+            {
+                curState: "Q",
+                inputByte: "b",
+                nextState: "Q"
+            },
+            ];
+            this.inputStr = "aababababbababba";
+            this.$notify.info({
+                title: '提示',
+                message: '给出了一个初始的测试用例，也可自定义修改用例',
+                position: 'top-right'
+            });
+        }
+
+    })
+</script>
+
+</html>
