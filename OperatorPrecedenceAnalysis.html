@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>算符优先分析表生成模拟</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/element-ui@2.13.1/lib/theme-chalk/index.css">
+    <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/element-ui@2.13.1/lib/index.js"></script>
+</head>
+
+<body>
+    <div id="app">
+        <el-row>
+            <el-col :span="24">
+                <el-form label-position="top">
+                    <el-card style="margin-bottom: 10px;">
+                        <div slot="header">
+                            <span style="font-size: 18px; font-weight: 600;">输入非终结符集合，用单个空格区分</span>
+                            <el-divider direction="vertical"></el-divider>
+                            <el-button type="text" style="font-weight: 600;" icon="el-icon-edit"
+                                @click="changeNoTerminalSet">点击修改非终结符集合</el-button>
+                        </div>
+                        <el-input v-model="noTerminalStr" placeholder="格式如下：S U X Y .... G"
+                            :disabled="noTerminalStrDisabled">
+                        </el-input>
+                    </el-card>
+                    <el-card>
+                        <div slot="header" class="clearfix" @click="productionListShow = !productionListShow">
+                            <span style="font-size: 18px; font-weight: 600;">构建文法 </span>
+                            <el-divider direction="vertical"></el-divider>
+                            <el-button style="font-weight: 600;" type="text" @click="addNewProduction">点击新增产生式
+                            </el-button>
+                            <i style="margin-left: 10px; " class="el-icon-arrow-down"></i>
+                            <el-link type="success" @click="saveProductionList"
+                                style="float: right; padding: 3px 0; text-decoration:none; padding: 3px 0; font-weight: 600;">
+                                保存文法后得出结果</el-link>
+                        </div>
+                        <el-collapse-transition>
+                            <div class="production-list-body" v-show="productionListShow">
+                                <el-row type="flex" align="middle" v-for="(item,idx) in productionList" :key="idx"
+                                    style="margin-bottom: 10px;">
+                                    <el-col :span="4">
+                                        <el-select v-model="item.left" placeholder="选择产生式左部">
+                                            <el-option v-for="(item,idx) in noTerminalSet" :key="idx" :label="item"
+                                                :value="item">
+                                            </el-option>
+                                        </el-select>
+                                    </el-col>
+                                    <el-col :span="1" style="font-size: 25px; font-weight: 600;">
+                                        <i class="el-icon-right"></i>
+                                    </el-col>
+                                    <el-col :span="6">
+                                        <el-input v-model="item.right" placeholder="输入产生式右部"></el-input>
+                                    </el-col>
+                                    <el-col :span="4" :offset="1">
+                                        <el-divider direction="vertical"></el-divider>
+                                        产生式 {{idx+1}} : {{item.left}} —> {{item.right}}
+                                    </el-col>
+                                    <el-col :span="4">
+                                        <el-button type="danger" plain size="mini" @click="deleteCurProduction(idx)">删除
+                                        </el-button>
+                                    </el-col>
+                                </el-row>
+                            </div>
+                        </el-collapse-transition>
+                    </el-card>
+            </el-col>
+            <el-col :span="24" style="padding: 5px 1px 5px 1px">
+                <el-collapse-transition>
+                    <el-card v-if="resultCardShow">
+                        <div slot="header">
+                            <span style="font-size: 20px; font-weight: 600;">根据当前文法得到的结果</span>
+                            <el-link type="success" @click="dialogTableShow = true"
+                                style="float: right; padding: 3px 0; text-decoration:none; padding: 3px 0; font-weight: 600;">
+                                查看算符优先分析表</el-link>
+                        </div>
+                        <el-collapse v-model="actionNames">
+                            <el-collapse-item title="" name="FIRSTVT&&LASTVT">
+                                <template slot="title">
+                                    <span style="font-size: 16px; font-weight: 600;">FIRSTVT AND LASTVT</span>
+                                </template>
+                                <el-row type="flex" justify="space-around">
+                                    <el-col :span="10">
+                                        <el-row v-for="item in FIRSTVTLIST" :key="item.name">
+                                            <el-col :span="3"
+                                                style="border-right: 1px solid #DCDFE6; font-weight: 600;">
+                                                FIRSTVT({{item.name}})
+                                            </el-col>
+                                            <el-col :span="16" style="margin-bottom: 5px;">
+                                                <el-tag style="margin-left: 10px; font-weight: 600; position: relative;"
+                                                    v-for="val in item.set" :key="val" type="info">
+                                                    {{val}}</el-tag>
+                                            </el-col>
+                                        </el-row>
+                                    </el-col>
+                                    <el-col :span="10">
+                                        <el-row v-for="item in LASTVTLIST" :key="item.name">
+                                            <el-col :span="3"
+                                                style="border-right: 1px solid #DCDFE6; font-weight: 600;">
+                                                LASTVT({{item.name}})
+                                            </el-col>
+                                            <el-col :span="16" style="margin-bottom: 5px;">
+                                                <el-tag style="margin-left: 10px; font-weight: 600; position: relative;"
+                                                    v-for="val in item.set" :key="val" type="info">
+                                                    {{val}}</el-tag>
+                                            </el-col>
+                                        </el-row>
+                                    </el-col>
+                                </el-row>
+                            </el-collapse-item>
+                            <el-collapse-item name="operatorAnalysisTable">
+                                <template slot="title" style=" font-size: 16px; font-weight: 600;">
+                                    <span style="font-size: 16px; font-weight: 600;">算符优先分析表的构造过程</span>
+                                </template>
+                                <el-table :data="processTable" border stripe fit>
+                                    <el-table-column prop="producion" label="产生式">
+                                    </el-table-column>
+                                    <el-table-column prop="conditions" label="判断依据">
+                                    </el-table-column>
+                                    <el-table-column prop="relationship" label="优先关系">
+                                    </el-table-column>
+                                </el-table>
+                            </el-collapse-item>
+                        </el-collapse>
+                    </el-card>
+                </el-collapse-transition>
+            </el-col>
+        </el-row>
+        <el-dialog title="算符优先分析表" :visible.sync="dialogTableShow" width="50%">
+            <el-table :data="operatorAnalysisTable" border stripe fit>
+                <el-table-column type="index" :index="indexMethod">
+                </el-table-column>
+                <el-table-column v-for="(item,idx) in terminalSet" :key="item" :index="idx" :label="item"
+                    align="center">
+                    <template slot-scope="scope">
+                        <span>{{scope.row.col[scope.column.index].value}}</span>
+                    </template>
+                </el-table-column>
+            </el-table>
+        </el-dialog>
+
+    </div>
+</body>
+<script>
+    class FIRSTVT {
+        constructor(name) {
+            this.name = name;
+            this.set = new Set();
+        }
+        //添加单个记录到集合
+        addToSet(val) {
+            this.set.add(val);
+        }
+        //添加一个数组记录到集合
+        addListToSet(list) {
+            this.set = new Set([...this.set, ...list]);
+        }
+    };
+    class LASTVT {
+        constructor(name) {
+            this.name = name;
+            this.set = new Set();
+        }
+        //添加单个记录到集合
+        addToSet(val) {
+            this.set.add(val);
+        }
+        //添加一个数组记录到集合
+        addListToSet(list) {
+            this.set = new Set([...this.set, ...list]);
+        }
+    };
+    //算符分析表的一行当作一个节点
+    class OperatorAnalysisNode {
+        constructor(rowKey) {
+            this.rowKey = rowKey;
+            this.col = []
+        }
+        //设置一行中的某一个指定符合节点的值
+        setColNode(colKey, value) {
+            this.col.forEach(item => {
+                if (item.colKey == colKey) {
+                    item.value = value
+                }
+            })
+        }
+        //根据VT集合设置一行中指定符合节点的值
+        setColNodeBySet(nodeSet, val) {
+            nodeSet.forEach(nodeItem => {
+                this.col.forEach(colItem => {
+                    if (colItem.colKey == nodeItem) {
+                        colItem.value = val;
+                    }
+                })
+            })
+        }
+        //根据终结符初始化行
+        addCol(colArr) {
+            colArr.forEach(val => {
+                this.col.push({
+                    colKey: val,
+                    value: ""
+                })
+            })
+        }
+    };
+    new Vue({
+        el: "#app",
+        data() {
+            return {
+                productionListShow: true,
+                resultCardShow: false,
+                dialogTableShow: false,
+                noTerminalStrDisabled: true,
+                actionNames: ['FIRSTVT&&LASTVT', 'operatorAnalysisTable'],
+                noTerminalStr: "",
+                productionList: [],
+                //格式化后的产生式节点列表
+                productionNodeList: [
+                    {
+                        left: "",   //产生式左部
+                        right: []   //产生式右部，一个非终结符可能有多个右部不同的产生式
+                    }
+                ],
+                // FIRSTVT 和 LASTVT 的键值对，key为非终结符，value为当前符号下的VT集
+                FIRSTVTMAP: new Map(),
+                LASTVTMAP: new Map(),
+                //终结符集合
+                terminalSet: new Set(),
+                //
+                operatorAnalysisTable: [
+                    new OperatorAnalysisNode()
+                ],
+                //过程记录表
+                processTable: [
+                    {
+                        "producion": "",    //产生式
+                        "conditions": "",   //判断依据
+                        "relationship": "", //优先级关系
+                    }
+                ]
+            }
+        },
+        computed: {
+            noTerminalSet: function () {
+                return this.noTerminalStr.split(" ");
+            },
+            FIRSTVTLIST: function () {
+                let arr = [];
+                this.FIRSTVTMAP.forEach((val, key) => {
+                    arr.push({
+                        name: key,
+                        set: val
+                    });
+                });
+                return arr;
+            },
+            LASTVTLIST: function () {
+                let arr = [];
+                this.LASTVTMAP.forEach((val, key) => {
+                    arr.push({
+                        name: key,
+                        set: val
+                    });
+                });
+                return arr;
+            },
+        },
+        methods: {
+            //新建产生式
+            addNewProduction() {
+                this.productionListShow = false;
+                this.productionList.push({
+                    left: "",
+                    right: ""
+                });
+            },
+            //删除当前产生式
+            deleteCurProduction(idx) {
+                this.productionList.splice(idx, 1);
+            },
+            //初始化各记录为空
+            init() {
+                this.FIRSTVTMAP = new Map(),
+                this.LASTVTMAP = new Map(),
+                this.productionNodeList = [];
+                this.operatorAnalysisTable = [];
+                this.processTable = [];
+            },
+            indexMethod(index) {
+                return this.operatorAnalysisTable[index].rowKey
+            },
+            changeNoTerminalSet() {
+                this.noTerminalStrDisabled = !this.noTerminalStrDisabled;
+                if (!this.noTerminalStrDisabled) {
+                    this.init();
+                }
+            },
+            //保存文法
+            saveProductionList() {
+                this.productionListShow = false;
+                this.$confirm('是否确认输入的文法无误?', '提示', {
+                    confirmButtonText: '确定',
+                    cancelButtonText: '取消',
+                    type: 'warning'
+                }).then(() => {
+                    this.init();
+                    try {
+                        //格式化产生式
+                        this.formatProductionList();
+                        //console.log("this.productionNodeList", this.productionNodeList);
+                        //得到终结符集合
+                        this.getTerminalSet();
+                        //console.log("this.terminalSet", this.terminalSet);
+                        //得到FIRSTVT
+                        this.getFIRSTVTMAP();
+                        //console.log("this.FIRSTVTMAP", this.FIRSTVTMAP);
+                        //console.log("this.FIRSTVTLIST", this.FIRSTVTLIST);
+                        //得到LASTVT
+                        this.getLASTVTMAP();
+                        //console.log("this.LASTVTMAP", this.LASTVTMAP);
+                        //console.log("this.LASTVTLIST", this.LASTVTLIST);
+                        //初始化算符优先分析表格
+                        this.createOperatorAnalysistable();
+                        //判断优先级关系
+                        this.judgePriority();
+                        //console.log("createOperatorAnalysistable", this.operatorAnalysisTable);
+                        this.$message({
+                            type: "success",
+                            message: "算符优先分析表构造成功"
+                        })
+                    } catch (error) {
+                        this.$message({
+                            type: "error",
+                            message: "文法不规范，请重新检查"
+                        })
+                        console.log(error);
+                    }
+                    this.resultCardShow = true;
+                    this.productionListShow = false;
+                    this.dialogTableShow = true;
+                }).catch(() => {
+                    return;
+                });
+            },
+            productionHasNode(left) {
+                let index = null;
+                this.productionNodeList.forEach((val, idx) => {
+                    if (val.left == left) {
+                        index = idx
+                    }
+                })
+                return index;
+            },
+            getProductionNodeByLeft(left) {
+                let res = null;
+                this.productionNodeList.forEach(val => {
+                    if (val.left == left) {
+                        res = val;
+                    }
+                })
+                return res;
+            },
+            //格式化输入的产生式列表
+            formatProductionList() {
+                this.productionList.forEach((val, idx) => {
+                    let index = this.productionHasNode(val.left);
+                    //当前产生式左部已存在，则将右部推入到已存在产生式右部数组中
+                    if (index) {
+                        if (val.right.includes("|")) {
+                            this.productionNodeList[index].right = this.productionNodeList[index].right
+                                .concat(val.right.split("|"));
+                        } else {
+                            this.productionNodeList[index].right.push(val.right)
+                        }
+                        //当前产生式左部不存在
+                    } else {
+                        if (val.right.includes("|")) {
+                            this.productionNodeList.push({
+                                left: val.left,
+                                right: val.right.split("|")
+                            });
+                        } else {
+                            this.productionNodeList.push({
+                                left: val.left,
+                                right: [val.right]
+                            })
+                        }
+                    }
+                })
+            },
+            /*  找Firstvt的三条规则：如果要找A的Firstvt，A的候选式中出现：
+                A->a.......，即以终结符开头，该终结符入Firstvt
+                A->B.......，即以非终结符开头，该非终结符的Firstvt入A的Firstvt
+                A->Ba.....，即先以非终结符开头，紧跟终结符，则终结符入Firstvt   */
+            getFIRSTVT(left) {
+                //根据产生式左部获取产生式节点
+                let curProductionNode = this.getProductionNodeByLeft(left);
+                //构造一个FIRSTVT节点
+                let FIRSTVTNode = new FIRSTVT(curProductionNode.left);
+                curProductionNode.right.forEach(val => {
+                    //A->a.......，即以终结符开头，该终结符入Firstvt
+                    if (!this.noTerminalSet.includes(val.charAt(0))) {
+                        FIRSTVTNode.addToSet(val.charAt(0))
+                        //非终结符开头
+                    } else {
+                        //A->Ba.....，即先以非终结符开头，紧跟终结符，则终结符入Firstvt
+                        if (val.charAt(1) != "" && !this.noTerminalSet.includes(val.charAt(1))) {
+                            FIRSTVTNode.addToSet(val.charAt(1))
+                            //A->B.......，即以非终结符开头，该非终结符的Firstvt入A的Firstvt
+                        } else {
+                            FIRSTVTNode.addListToSet(this.getFIRSTVT(val.charAt(0)).set);
+                        }
+                    }
+                })
+                return FIRSTVTNode;
+            },
+            /*  找Lastvt的三条规则：如果要找A的Lastvt，A的候选式中出现：
+                A->.......B，即以非终结符结尾，该非终结符的Lastvt入A的Lastvt
+                A->.......a，即以终结符结尾，该终结符入Lastvt
+                A->.....aB，即先以非终结符结尾，前面是终结符，则终结符入Lastvt */
+            getLASTVT(left) {
+                let curProductionNode = this.getProductionNodeByLeft(left);
+                let LASTVTNode = new LASTVT(curProductionNode.left);
+                curProductionNode.right.forEach(val => {
+                    //A->.......a，即以终结符结尾，该终结符入Lastvt
+                    if (!this.noTerminalSet.includes(val.charAt(val.length - 1))) {
+                        LASTVTNode.addToSet(val.charAt(val.length - 1));
+                        //非终结符结尾
+                    } else {
+                        // A->.....aB，即先以非终结符结尾，前面是终结符，则终结符入Lastvt
+                        if (val.charAt(val.length - 2) != "" && !this.noTerminalSet.includes(val.charAt(
+                            val.length - 2))) {
+                            LASTVTNode.addToSet(val.charAt(val.length - 2));
+                            // A->.......B，即以非终结符结尾，该非终结符的Lastvt入A的Lastvt
+                        } else {
+                            LASTVTNode.addListToSet(this.getLASTVT(val.charAt(val.length - 1)).set);
+                        }
+                    }
+                })
+                return LASTVTNode;
+            },
+            getFIRSTVTMAP() {
+                this.productionNodeList.forEach(val => {
+                    let FIRSTVTNode = this.getFIRSTVT(val.left);
+                    this.FIRSTVTMAP.set(
+                        FIRSTVTNode.name,
+                        FIRSTVTNode.set
+                    )
+                });
+
+            },
+            getLASTVTMAP() {
+                this.productionNodeList.forEach(val => {
+                    let LASTVTNode = this.getLASTVT(val.left);
+                    this.LASTVTMAP.set(
+                        LASTVTNode.name,
+                        LASTVTNode.set
+                    )
+                });
+            },
+            //获取产生式中的终结符集合
+            getTerminalSet() {
+                this.productionNodeList.forEach(productionNode => {
+                    productionNode.right.forEach(rightStr => {
+                        rightStr.split("").forEach(val => {
+                            if (!this.noTerminalSet.includes(val)) {
+                                this.terminalSet.add(val)
+                            }
+                        })
+                    })
+                })
+            },
+            //根据终结符集构建算符分析表
+            createOperatorAnalysistable() {
+                this.terminalSet.forEach(val => {
+                    //构建行节点
+                    let operatorAnalysisNode = new OperatorAnalysisNode(val);
+                    //根据终结符集初始化行节点下的列
+                    operatorAnalysisNode.addCol(this.terminalSet);
+                    //将当前行推入算符优先分析表表中
+                    this.operatorAnalysisTable.push(operatorAnalysisNode);
+                })
+            },
+            /*  1) = 关系 直接看产生式的右部，若出现了A →…ab…或A →…aBb,则a=b
+                2) < 关系 若A→…aB…,则a<FIRSTVT(B)
+                3) > 关系 若A→…Bb…,则LASTVT(B)>b
+            */
+            judgePriority() {
+                this.productionNodeList.forEach(productionNode => {
+                    productionNode.right.forEach(rightItem => {
+                        rightItem.split("").forEach((val, idx, arr) => {
+                            // = 关系 直接看产生式的右部，若出现了A →…ab…或A →…aBb,则a=b
+                            if (this.terminalSet.has(val) &&
+                                this.terminalSet.has(arr[idx + 1])) {
+                                this.processTable.push(
+                                    {
+                                        producion: `${productionNode.left} -> ${productionNode.right.join("|")}`,
+                                        conditions: `${productionNode.left} -> ...${val}${arr[idx + 1]}...`,
+                                        relationship: `${val} = ${arr[idx + 1]}`
+                                    }
+                                );
+                                this.operatorAnalysisTable.forEach((tableItem) => {
+                                    if (tableItem.rowKey == val) {
+                                        tableItem.setColNode(arr[idx + 1],
+                                            " = ")
+                                    }
+                                })
+                            }
+                            //A →…aBb
+                            if (this.terminalSet.has(val) &&
+                                this.noTerminalSet.includes(arr[idx + 1]) &&
+                                this.terminalSet.has(arr[idx + 2])) {
+                                this.processTable.push(
+                                    {
+                                        producion: `${productionNode.left} -> ${productionNode.right.join("|")}`,
+                                        conditions: `${productionNode.left} -> ...${val}${arr[idx + 1]}${arr[idx + 2]}...`,
+                                        relationship: `${val} = ${arr[idx + 2]}`
+                                    }
+                                );
+                                this.operatorAnalysisTable.forEach(tableItem => {
+                                    if (tableItem.rowKey == val) {
+                                        tableItem.setColNode(arr[idx + 2],
+                                            " = ");
+                                    }
+                                })
+                            }
+                            // < 关系 若A→…aB…,则a<FIRSTVT(B)
+                            if (this.terminalSet.has(val) &&
+                                this.noTerminalSet.includes(arr[idx + 1])) {
+                                this.processTable.push(
+                                    {
+                                        producion: `${productionNode.left} -> ${productionNode.right.join("|")}`,
+                                        conditions: `${productionNode.left} -> ...${val}${arr[idx + 1]}...`,
+                                        relationship: `${val} < FIRSTVT(${arr[idx + 1]})`
+                                    }
+                                );
+                                this.operatorAnalysisTable.forEach(tableItem => {
+                                    if (tableItem.rowKey == val) {
+                                        tableItem.setColNodeBySet(this
+                                            .FIRSTVTMAP.get(arr[idx + 1]),
+                                            " < ");
+                                    }
+                                })
+                            }
+                            //> 关系 若A→…Bb…,则LASTVT(B)>b
+                            if (this.noTerminalSet.includes(val) &&
+                                this.terminalSet.has(arr[idx + 1])) {
+                                this.processTable.push(
+                                    {
+                                        producion: `${productionNode.left} -> ${productionNode.right.join("|")}`,
+                                        conditions: `${productionNode.left} -> ...${val}${arr[idx + 1]}...`,
+                                        relationship: `LASTVT(${val}) > ${val}`
+                                    }
+                                );
+                                this.operatorAnalysisTable.forEach(
+                                    tableItem => {
+                                        if (this.LASTVTMAP.get(val).has(tableItem.rowKey)) {
+                                            tableItem.setColNode(arr[idx + 1], " > ");
+                                        }
+                                    })
+                            }
+                        })
+                    })
+                })
+            }
+        },
+        created() {
+            this.init();
+            this.noTerminalStr = "S E T F P";
+            this.productionList = [{
+                left: "S",
+                right: "#E#"
+            },
+            {
+                left: "E",
+                right: "E+T"
+            },
+            {
+                left: "E",
+                right: "T"
+            },
+            {
+                left: "T",
+                right: "T*F"
+            },
+            {
+                left: "T",
+                right: "F"
+            },
+            {
+                left: "F",
+                right: "P↑F|P"
+            },
+            {
+                left: "P",
+                right: "(E)"
+            },
+            {
+                left: "P",
+                right: "i"
+            }];
+            this.$notify.info({
+                title: '提示',
+                message: '给出了一个初始化文法，也可自定义修改文法，保存后即可查看结果',
+                position: 'top-right'
+            });
+        },
+    })
+</script>
+
+</html>
